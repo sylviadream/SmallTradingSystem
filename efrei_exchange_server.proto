@@ -1,0 +1,99 @@
+syntax="proto3";
+
+package efrei.exchange_server;
+
+
+message Void
+{}
+
+message NewPriceArgs
+{
+	int32 instrument_id=1; // 0 or 1 (we are working with 2 instruments only)
+	uint32 bid=2;
+	uint32 bid_qty=3;
+	uint32 ask=4;
+	uint32 ask_qty=5;
+}
+
+
+message SubscribeArgs
+{
+	string name = 1;   // your team name (or whatever)
+	string endpoint=2; // YOUR ExchangeClient server , form : a.b.c.d:port
+}
+
+message SubscribeResponse
+{
+	int64 client_id=1; // negative if error, else your id
+	string err_msg=2;
+}
+
+message SendOrderArgs
+{
+	int32 instrument_id=1; // 0 or 1
+	uint64 price=2;      // limit price of the IOC order 
+	int32 qty=3;		// sign represents side , ex: +4 => buy 4, -2 => sell 2
+	uint64 client_id=4; // the id sent during subscription
+
+}
+message SendOrderResponse
+{
+	uint64 order_id=1; // used to reconciliate in OrderEventArg message
+	string err_msg=2;  // if not-empty : your order has not been accepted
+}
+
+enum OrderStatus
+{
+	executed		=0;
+	deleted_as_fok	=1;
+	deleted_as_ioc	=2;
+
+}
+
+// A Deal is the result of what you bought or sold
+
+message Deal
+{
+	int32 qty=1;// sign represents side , ex: +4 => buy 4, -2 => sell 2
+	uint64 price=2;
+}
+
+message OrderEventArg
+{
+	uint64 order_id=1; // the id sent in SendOrderResponse message
+	int32 instrument_id=2; // 0 or 1
+
+	Deal deal=3;
+	OrderStatus status =4; // this status indicates the real intent of this message
+}
+
+// this 2 messages can be used to deserialize the report published on the web page
+message PortfolioSingleProduct
+{
+	int64 open_qty=1;
+	int64 pnl=2;
+	uint64 executed_qty=3;
+	repeated Deal open_deals=4;
+}
+message Portfolio
+{
+	repeated PortfolioSingleProduct portfolios=1;
+}
+
+// Exchange server implements this interface.
+// A trading client must be a client of this interface
+service ExchangeEngine
+{
+    rpc Subscribe(SubscribeArgs) returns (SubscribeResponse) {}
+	rpc SendOrder(SendOrderArgs)returns (SendOrderResponse) {}
+	rpc PingSrv(Void)returns (Void){}
+}
+
+// Exchange server will be client of this interface.
+// A trading client must provides a server implementation of this interface (so the exchange can contact it)
+service ExchangeClient
+{
+    rpc NewPrice(NewPriceArgs) returns (Void) {}
+	rpc OrderEvent(OrderEventArg)returns (Void) {}
+	rpc Ping(Void)returns (Void){}
+}
